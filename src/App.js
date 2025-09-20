@@ -3,27 +3,47 @@ import { motion, AnimatePresence } from "framer-motion";
 import OptimizeTab from "./components/OptimizeTab";
 import StatsTab from "./components/StatsTab";
 import AboutTab from "./components/AboutTab";
+import HistoryTab from "./components/HistoryTab";
 import "./index.css"; // use index.css for global styles
 
 const tabs = [
   { key: "optimize", label: "Optimize" },
   { key: "stats", label: "Stats" },
+  { key: "history", label: "History" },
   { key: "about", label: "About Us" },
 ];
 
 function App() {
   const [activeTab, setActiveTab] = useState("optimize");
+  
+  // Shared state for OptimizeTab to preserve data when switching tabs
+  const [optimizeState, setOptimizeState] = useState({
+    messages: [],
+    tokensBefore: 0,
+    tokensAfter: 0,
+    carbonSaved: 0,
+    totalCarbonSaved: 0,
+    sessionStats: null
+  });
 
   const renderTab = () => {
     switch (activeTab) {
       case "optimize":
-        return <OptimizeTab />;
+        return <OptimizeTab 
+          state={optimizeState} 
+          setState={setOptimizeState} 
+        />;
       case "stats":
         return <StatsTab />;
+      case "history":
+        return <HistoryTab />;
       case "about":
         return <AboutTab />;
       default:
-        return <OptimizeTab />;
+        return <OptimizeTab 
+          state={optimizeState} 
+          setState={setOptimizeState} 
+        />;
     }
   };
 

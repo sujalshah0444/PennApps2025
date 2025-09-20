@@ -2,19 +2,24 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import CountUp from "react-countup";
 import { optimizePrompt } from "../utils/promptOptimizer";
+import apiService from "../services/api";
 
-export default function OptimizeTab() {
-  const [messages, setMessages] = useState([]);
+export default function OptimizeTab({ state, setState }) {
   const [input, setInput] = useState("");
   const [taglineIndex, setTaglineIndex] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
-
-  // States for tokens & CO₂
-  const [tokensBefore, setTokensBefore] = useState(0);
-  const [tokensAfter, setTokensAfter] = useState(0);
-  const [carbonSaved, setCarbonSaved] = useState(0);
   const [triggerCount, setTriggerCount] = useState(false);
-  const [totalCarbonSaved, setTotalCarbonSaved] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Use external state for persistence
+  const {
+    messages,
+    tokensBefore,
+    tokensAfter,
+    carbonSaved,
+    totalCarbonSaved,
+    sessionStats
+  } = state;
 
   const taglines = [
     "✂️ Prompt Shortener — keep it concise.",
@@ -31,48 +36,104 @@ export default function OptimizeTab() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+  // Load session stats on component mount
+  useEffect(() => {
+    loadSessionStats();
+  }, []);
+
+  const loadSessionStats = async () => {
+    try {
+      const stats = await apiService.getSessionStats();
+      if (stats.success) {
+        setState(prev => ({
+          ...prev,
+          sessionStats: stats.data,
+          totalCarbonSaved: stats.data.sessionStats.totalCarbonSaved
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading session stats:', error);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
+
+    const userInput = input;
+    setIsLoading(true);
 
     // Add user message
-    setMessages((prev) => [...prev, { text: input, sender: "user" }]);
+    setState(prev => ({
+      ...prev,
+      messages: [...prev.messages, { text: userInput, sender: "user" }]
+    }));
     setInput("");
     setIsTyping(true);
 
-    // Use the actual optimization logic
-    setTimeout(() => {
-      try {
-        const result = optimizePrompt(input);
-        
-        setTokensBefore(result.tokensBefore);
-        setTokensAfter(result.tokensAfter);
-        setCarbonSaved(result.carbonSavings.co2Saved);
-        setTotalCarbonSaved(prev => prev + result.carbonSavings.co2Saved);
-        setTriggerCount(true);
-        setTimeout(() => setTriggerCount(false), 200);
+    try {
+      // Use the actual optimization logic
+      const result = optimizePrompt(userInput);
+      
+      setState(prev => ({
+        ...prev,
+        tokensBefore: result.tokensBefore,
+        tokensAfter: result.tokensAfter,
+        carbonSaved: result.carbonSavings.co2Saved,
+        totalCarbonSaved: prev.totalCarbonSaved + result.carbonSavings.co2Saved
+      }));
+      setTriggerCount(true);
+      setTimeout(() => setTriggerCount(false), 200);
 
-        setIsTyping(false);
-        setMessages((prev) => [
-          ...prev,
+      // Save optimization to database
+      const saveResult = await apiService.saveOptimization({
+        originalPrompt: result.original,
+        optimizedPrompt: result.optimized,
+        tokensBefore: result.tokensBefore,
+        tokensAfter: result.tokensAfter,
+        tokensSaved: result.tokensSaved,
+        carbonSaved: result.carbonSavings.co2Saved,
+        qualityScore: result.qualityScore,
+        optimizations: result.optimizations,
+        strategy: 'balanced'
+      });
+
+      if (saveResult.success) {
+        console.log('Optimization saved successfully');
+        // Update session stats
+        await loadSessionStats();
+      } else {
+        console.warn('Failed to save optimization:', saveResult.message);
+      }
+
+      setIsTyping(false);
+      setState(prev => ({
+        ...prev,
+        messages: [
+          ...prev.messages,
           {
             text: `🌍 Optimized: ${result.optimized}`,
             sender: "bot",
             optimizations: result.optimizations,
             qualityScore: result.qualityScore
-          },
-        ]);
-      } catch (error) {
-        console.error('Optimization error:', error);
-        setIsTyping(false);
-        setMessages((prev) => [
-          ...prev,
+          }
+        ]
+      }));
+    } catch (error) {
+      console.error('Optimization error:', error);
+      setIsTyping(false);
+      setState(prev => ({
+        ...prev,
+        messages: [
+          ...prev.messages,
           {
             text: "❌ Sorry, there was an error optimizing your prompt.",
             sender: "bot",
-          },
-        ]);
-      }
-    }, 1500);
+          }
+        ]
+      }));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -214,9 +275,10 @@ export default function OptimizeTab() {
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={handleSend}
-            className="px-5 py-3 bg-green-500 text-white font-semibold rounded-xl shadow hover:bg-green-600"
+            disabled={isLoading}
+            className="px-5 py-3 bg-green-500 text-white font-semibold rounded-xl shadow hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Send
+            {isLoading ? 'Saving...' : 'Send'}
           </motion.button>
         </div>
       </motion.div>
