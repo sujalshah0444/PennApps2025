@@ -1,23 +1,29 @@
 import React, { useState } from 'react';
-import { usePromptOptimizer } from '../hooks/usePromptOptimizer';
+import { optimizePrompt, optimizeBatch } from '../utils/promptOptimizer';
 import './PromptOptimizer.css';
 
 const PromptOptimizer = () => {
   const [prompt, setPrompt] = useState('');
-  const [strategy, setStrategy] = useState('balanced');
-  const [useApi, setUseApi] = useState(false);
   const [result, setResult] = useState(null);
-  
-  const { optimize, isOptimizing, error, history } = usePromptOptimizer();
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [error, setError] = useState(null);
+  const [history, setHistory] = useState([]);
 
   const handleOptimize = async () => {
     if (!prompt.trim()) return;
     
+    setIsOptimizing(true);
+    setError(null);
+    
     try {
-      const optimizationResult = await optimize(prompt, strategy, useApi);
+      const optimizationResult = optimizePrompt(prompt);
       setResult(optimizationResult);
+      setHistory(prev => [optimizationResult, ...prev.slice(0, 9)]); // Keep last 10
     } catch (err) {
+      setError('Optimization failed. Please try again.');
       console.error('Optimization failed:', err);
+    } finally {
+      setIsOptimizing(false);
     }
   };
 
@@ -30,8 +36,8 @@ const PromptOptimizer = () => {
   return (
     <div className="prompt-optimizer">
       <div className="header">
-        <h1>🌱 Type-Less</h1>
-        <p>Reduce AI carbon footprint by optimizing your prompts</p>
+        <h1>🚀 Prompt Optimizer</h1>
+        <p>Optimize your prompts for better efficiency and clarity</p>
       </div>
 
       <div className="input-section">
@@ -44,30 +50,6 @@ const PromptOptimizer = () => {
         />
         
         <div className="controls">
-          <div className="strategy-group">
-            <label htmlFor="strategy">Strategy:</label>
-            <select 
-              id="strategy"
-              value={strategy} 
-              onChange={(e) => setStrategy(e.target.value)}
-              className="strategy-select"
-            >
-              <option value="conservative">Conservative (minimal changes)</option>
-              <option value="balanced">Balanced (recommended)</option>
-              <option value="aggressive">Aggressive (maximum compression)</option>
-            </select>
-          </div>
-          
-          <div className="api-toggle">
-            <label>
-              <input
-                type="checkbox"
-                checked={useApi}
-                onChange={(e) => setUseApi(e.target.checked)}
-              />
-              Use Backend API
-            </label>
-          </div>
           
           <button 
             onClick={handleOptimize}
