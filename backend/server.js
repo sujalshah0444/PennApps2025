@@ -9,6 +9,7 @@ dotenv.config();
 // Import routes
 const optimizationRoutes = require('./routes/optimization');
 const sessionRoutes = require('./routes/session');
+const authRoutes = require('./routes/auth');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -27,6 +28,7 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use('/api/optimization', optimizationRoutes);
 app.use('/api/session', sessionRoutes);
+app.use('/api/auth', authRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

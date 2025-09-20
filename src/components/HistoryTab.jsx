@@ -2,14 +2,14 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import apiService from "../services/api";
 
-export default function HistoryTab() {
+export default function HistoryTab({ user }) {
   const [history, setHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     loadHistory();
-  }, []);
+  }, [user]); // Reload when user changes
 
   const loadHistory = async () => {
     try {
@@ -68,12 +68,14 @@ export default function HistoryTab() {
       <div className="flex flex-col items-center justify-center p-6 space-y-6">
         <div className="card text-center w-full max-w-md">
           <div className="text-gray-400 text-6xl mb-4">📝</div>
-          <h3 className="text-xl font-bold text-gray-800 mb-2">No History Yet</h3>
+          <h3 className="text-xl font-bold text-gray-800 mb-2">
+            {user ? "No History Yet" : "Sign In Required"}
+          </h3>
           <p className="text-gray-600 mb-4">
-            Start optimizing prompts to see your history here!
+            {user ? "Start optimizing prompts to see your history here!" : "Sign in to save and view your optimization history!"}
           </p>
           <p className="text-sm text-gray-500">
-            Go to the Optimize tab to get started.
+            {user ? "Go to the Optimize tab to get started." : "Your optimizations will be saved when you're signed in."}
           </p>
         </div>
       </div>

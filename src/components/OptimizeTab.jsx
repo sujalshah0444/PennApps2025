@@ -4,7 +4,7 @@ import CountUp from "react-countup";
 import { optimizePrompt } from "../utils/promptOptimizer";
 import apiService from "../services/api";
 
-export default function OptimizeTab({ state, setState }) {
+export default function OptimizeTab({ state, setState, user }) {
   const [input, setInput] = useState("");
   const [taglineIndex, setTaglineIndex] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
@@ -36,10 +36,19 @@ export default function OptimizeTab({ state, setState }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Load session stats on component mount
+  // Load session stats on component mount and when user changes
   useEffect(() => {
     loadSessionStats();
-  }, []);
+    // Clear messages when user changes (including when user becomes null)
+    setState(prev => ({
+      ...prev,
+      messages: [],
+      tokensBefore: 0,
+      tokensAfter: 0,
+      carbonSaved: 0,
+      totalCarbonSaved: 0
+    }));
+  }, [user]);
 
   const loadSessionStats = async () => {
     try {
@@ -84,25 +93,30 @@ export default function OptimizeTab({ state, setState }) {
       setTriggerCount(true);
       setTimeout(() => setTriggerCount(false), 200);
 
-      // Save optimization to database
-      const saveResult = await apiService.saveOptimization({
-        originalPrompt: result.original,
-        optimizedPrompt: result.optimized,
-        tokensBefore: result.tokensBefore,
-        tokensAfter: result.tokensAfter,
-        tokensSaved: result.tokensSaved,
-        carbonSaved: result.carbonSavings.co2Saved,
-        qualityScore: result.qualityScore,
-        optimizations: result.optimizations,
-        strategy: 'balanced'
-      });
+      // Only save optimization to database if user is signed in
+      if (user) {
+        const saveResult = await apiService.saveOptimization({
+          originalPrompt: result.original,
+          optimizedPrompt: result.optimized,
+          tokensBefore: result.tokensBefore,
+          tokensAfter: result.tokensAfter,
+          tokensSaved: result.tokensSaved,
+          carbonSaved: result.carbonSavings.co2Saved,
+          qualityScore: result.qualityScore,
+          optimizations: result.optimizations,
+          strategy: 'balanced',
+          userId: user._id
+        });
 
-      if (saveResult.success) {
-        console.log('Optimization saved successfully');
-        // Update session stats
-        await loadSessionStats();
+        if (saveResult.success) {
+          console.log('Optimization saved successfully');
+          // Update session stats
+          await loadSessionStats();
+        } else {
+          console.warn('Failed to save optimization:', saveResult.message);
+        }
       } else {
-        console.warn('Failed to save optimization:', saveResult.message);
+        console.log('Optimization not saved - user not signed in');
       }
 
       setIsTyping(false);

@@ -21,9 +21,17 @@ router.post('/save', async (req, res) => {
       strategy
     } = req.body;
 
+    // Only create optimization record if user is signed in
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User must be signed in to save optimizations'
+      });
+    }
+
     // Create optimization record
     const optimization = new Optimization({
-      userId: userId || null,
+      userId: userId,
       sessionId,
       originalPrompt,
       optimizedPrompt,
@@ -38,31 +46,15 @@ router.post('/save', async (req, res) => {
 
     await optimization.save();
 
-    // Update session statistics
-    await Session.findOneAndUpdate(
-      { sessionId },
-      {
-        $inc: {
-          totalOptimizations: 1,
-          totalCarbonSaved: carbonSaved,
-          totalTokensSaved: tokensSaved
-        },
-        $set: { lastActivity: new Date() }
+    // Update user statistics
+    await User.findByIdAndUpdate(userId, {
+      $inc: {
+        totalCarbonSaved: carbonSaved,
+        totalPromptsOptimized: 1,
+        totalTokensSaved: tokensSaved
       },
-      { upsert: true }
-    );
-
-    // Update user statistics if user is logged in
-    if (userId) {
-      await User.findByIdAndUpdate(userId, {
-        $inc: {
-          totalCarbonSaved: carbonSaved,
-          totalPromptsOptimized: 1,
-          totalTokensSaved: tokensSaved
-        },
-        $set: { lastActive: new Date() }
-      });
-    }
+      $set: { lastActive: new Date() }
+    });
 
     res.status(201).json({
       success: true,
@@ -79,19 +71,26 @@ router.post('/save', async (req, res) => {
   }
 });
 
-// Get optimization history for a session
-router.get('/history/:sessionId', async (req, res) => {
+// Get optimization history for a session or user
+router.get('/history/:identifier', async (req, res) => {
   try {
-    const { sessionId } = req.params;
-    const { page = 1, limit = 20 } = req.query;
+    const { identifier } = req.params;
+    const { page = 1, limit = 20, type = 'session' } = req.query;
 
-    const optimizations = await Optimization.find({ sessionId })
+    let query;
+    if (type === 'user') {
+      query = { userId: identifier };
+    } else {
+      query = { sessionId: identifier };
+    }
+
+    const optimizations = await Optimization.find(query)
       .sort({ timestamp: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .select('-__v');
 
-    const total = await Optimization.countDocuments({ sessionId });
+    const total = await Optimization.countDocuments(query);
 
     res.json({
       success: true,
@@ -112,38 +111,71 @@ router.get('/history/:sessionId', async (req, res) => {
   }
 });
 
-// Get user statistics
-router.get('/stats/:sessionId', async (req, res) => {
+// Get user or session statistics
+router.get('/stats/:identifier', async (req, res) => {
   try {
-    const { sessionId } = req.params;
+    const { identifier } = req.params;
+    const { type = 'session' } = req.query;
 
-    const session = await Session.findOne({ sessionId });
-    if (!session) {
-      return res.status(404).json({
-        success: false,
-        message: 'Session not found'
+    if (type === 'user') {
+      // Get user statistics
+      const user = await User.findById(identifier);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+
+      // Get recent optimizations for this user
+      const recentOptimizations = await Optimization.find({ userId: identifier })
+        .sort({ timestamp: -1 })
+        .limit(10)
+        .select('originalPrompt optimizedPrompt tokensSaved carbonSaved timestamp');
+
+      res.json({
+        success: true,
+        data: {
+          sessionStats: {
+            totalOptimizations: user.totalPromptsOptimized,
+            totalCarbonSaved: user.totalCarbonSaved,
+            totalTokensSaved: user.totalTokensSaved,
+            startTime: user.joinDate,
+            lastActivity: user.lastActive
+          },
+          recentOptimizations
+        }
+      });
+    } else {
+      // Get session statistics
+      const session = await Session.findOne({ sessionId: identifier });
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          message: 'Session not found'
+        });
+      }
+
+      // Get recent optimizations for this session
+      const recentOptimizations = await Optimization.find({ sessionId: identifier })
+        .sort({ timestamp: -1 })
+        .limit(10)
+        .select('originalPrompt optimizedPrompt tokensSaved carbonSaved timestamp');
+
+      res.json({
+        success: true,
+        data: {
+          sessionStats: {
+            totalOptimizations: session.totalOptimizations,
+            totalCarbonSaved: session.totalCarbonSaved,
+            totalTokensSaved: session.totalTokensSaved,
+            startTime: session.startTime,
+            lastActivity: session.lastActivity
+          },
+          recentOptimizations
+        }
       });
     }
-
-    // Get recent optimizations for this session
-    const recentOptimizations = await Optimization.find({ sessionId })
-      .sort({ timestamp: -1 })
-      .limit(10)
-      .select('originalPrompt optimizedPrompt tokensSaved carbonSaved timestamp');
-
-    res.json({
-      success: true,
-      data: {
-        sessionStats: {
-          totalOptimizations: session.totalOptimizations,
-          totalCarbonSaved: session.totalCarbonSaved,
-          totalTokensSaved: session.totalTokensSaved,
-          startTime: session.startTime,
-          lastActivity: session.lastActivity
-        },
-        recentOptimizations
-      }
-    });
   } catch (error) {
     console.error('Error fetching statistics:', error);
     res.status(500).json({
