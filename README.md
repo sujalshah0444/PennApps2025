@@ -135,7 +135,7 @@ We welcome contributions:
 
 ## 🏆 Hackathon
 
-Built at **PennApps XXV (2024)**  
+Built at **PennApps XXVI (2025)**  
 - [Devpost Link](https://devpost.com/software/type-less)  
 - [GitHub Repo](https://github.com/hariomsah01/PennApps)  
 
