@@ -5,19 +5,22 @@ export const optimizePrompt = (prompt) => {
   let optimized = prompt;
   const optimizations = [];
   
-  // Step 1: Remove polite/redundant phrasing
+  // Step 1: Extract core request/question FIRST (before other processing)
+  optimized = extractCoreRequest(optimized, optimizations);
+  
+  // Step 2: Remove polite/redundant phrasing
   optimized = removePolitePhrasing(optimized, optimizations);
   
-  // Step 2: Remove stop-words and low-information words
+  // Step 3: Remove stop-words and low-information words
   optimized = removeStopWords(optimized, optimizations);
   
-  // Step 3: Convert passive voice to active
+  // Step 4: Convert passive voice to active
   optimized = convertPassiveToActive(optimized, optimizations);
   
-  // Step 4: Shorten expressions and use synonyms
+  // Step 5: Shorten expressions and use synonyms
   optimized = shortenExpressions(optimized, optimizations);
   
-  // Step 5: Apply structured prompt format
+  // Step 6: Apply structured prompt format
   optimized = applyStructuredFormat(optimized, optimizations);
   
   // Clean whitespace and punctuation
@@ -54,16 +57,35 @@ export const optimizePrompt = (prompt) => {
 // 1. Remove polite/redundant phrasing
 const removePolitePhrasing = (text, optimizations) => {
   const politePatterns = [
+    // Basic polite phrases
     {
       pattern: /\b(could you please|could you kindly|would you please|would you kindly)\s+/gi,
       replacement: '',
       description: 'Removed polite request phrases'
     },
+    // Extended polite phrases including "be so kind"
+    {
+      pattern: /\b(would you be so kind as to|could you be so kind as to)\s+/gi,
+      replacement: '',
+      description: 'Removed extended polite phrases'
+    },
+    {
+      pattern: /\b(be so kind as to|be kind enough to)\s+/gi,
+      replacement: '',
+      description: 'Removed polite "be so kind" phrases'
+    },
+    {
+      pattern: /\b(let me know|tell me|inform me)\s+/gi,
+      replacement: '',
+      description: 'Removed redundant "let me know" phrases'
+    },
+    // Indirect requests
     {
       pattern: /\b(I was wondering if you could|I would like you to|I need you to)\s+/gi,
       replacement: '',
       description: 'Removed indirect request phrases'
     },
+    // Complex polite requests
     {
       pattern: /\b(please provide me with|please give me|please share)\s+(a\s+)?(comprehensive|detailed|thorough)?\s*(summary|explanation|analysis)\s+of\s+/gi,
       replacement: 'Summarize ',
@@ -289,6 +311,102 @@ const applyStructuredFormat = (text, optimizations) => {
   return result;
 };
 
+// 5.5. Extract core question/request
+const extractCoreRequest = (text, optimizations) => {
+  let result = text;
+  
+  // Pattern for "summary of X along with Y and Z" type requests
+  const summaryPattern = /\b(.*?)\s+(summary|explanation|description)\s+of\s+(.+?)(?:\s+along\s+with|\s+with|\s+including|\s+and\s+also|\s+plus|\s*$)/gi;
+  const summaryMatch = result.match(summaryPattern);
+  if (summaryMatch) {
+    // Extract the full request including "along with" clauses
+    const fullMatch = result.match(/(summary|explanation|description)\s+of\s+(.+)/i);
+    if (fullMatch) {
+      // Clean up the extracted text
+      let extracted = fullMatch[2];
+      // Remove trailing punctuation and clean up
+      extracted = extracted.replace(/[?.]*$/, '').trim();
+      // Replace "along with" with "with" for conciseness
+      extracted = extracted.replace(/\s+along\s+with\s+/gi, ' with ');
+      result = `${fullMatch[1]} of ${extracted}`;
+      optimizations.push('Extracted core request');
+      return result;
+    }
+  }
+  
+  // Pattern for "give me X of Y" type requests
+  const givePattern = /\b(.*?)\s+give\s+(?:me\s+)?(?:a\s+)?(comprehensive\s+)?(summary|explanation|description)\s+of\s+(.+)/gi;
+  const giveMatch = result.match(givePattern);
+  if (giveMatch) {
+    const fullMatch = result.match(/(?:give\s+(?:me\s+)?(?:a\s+)?(?:comprehensive\s+)?)?(summary|explanation|description)\s+of\s+(.+)/i);
+    if (fullMatch) {
+      let extracted = fullMatch[2];
+      extracted = extracted.replace(/[?.]*$/, '').trim();
+      extracted = extracted.replace(/\s+along\s+with\s+/gi, ' with ');
+      result = `${fullMatch[1]} of ${extracted}`;
+      optimizations.push('Extracted core request');
+      return result;
+    }
+  }
+  
+  // Pattern for "how X works" type questions
+  const howPatterns = [
+    /\b(.*?)\s+how\s+(.+?)\s+works?\s*[?.]*$/gi,
+    /\b(.*?)\s+what\s+is\s+(.+?)\s*[?.]*$/gi,
+    /\b(.*?)\s+what\s+are\s+(.+?)\s*[?.]*$/gi,
+    /\b(.*?)\s+what\s+does\s+(.+?)\s+mean\s*[?.]*$/gi
+  ];
+  
+  // Extract "how X works" patterns
+  howPatterns.forEach(pattern => {
+    const match = result.match(pattern);
+    if (match) {
+      // Extract the core subject
+      const coreMatch = match[0].match(/how\s+(.+?)\s+works?/i);
+      if (coreMatch) {
+        result = `how ${coreMatch[1]} works`;
+        optimizations.push('Extracted core question');
+        return result;
+      }
+    }
+  });
+  
+  // Pattern for "explain X with Y" type requests
+  const explainWithPattern = /\b(.*?)\s+(explain|describe)\s+(.+?)\s+with\s+(.+)/gi;
+  const explainWithMatch = result.match(explainWithPattern);
+  if (explainWithMatch) {
+    const fullMatch = result.match(/(explain|describe)\s+(.+?)\s+with\s+(.+)/i);
+    if (fullMatch) {
+      let subject = fullMatch[2].replace(/[?.]*$/, '').trim();
+      let details = fullMatch[3].replace(/[?.]*$/, '').trim();
+      result = `${fullMatch[1]} ${subject} with ${details}`;
+      optimizations.push('Extracted core request');
+      return result;
+    }
+  }
+  
+  // Pattern for "explain X" type requests
+  const explainPatterns = [
+    /\b(.*?)\s+explain\s+(.+?)\s*[?.]*$/gi,
+    /\b(.*?)\s+describe\s+(.+?)\s*[?.]*$/gi,
+    /\b(.*?)\s+summarize\s+(.+?)\s*[?.]*$/gi
+  ];
+  
+  explainPatterns.forEach(pattern => {
+    const match = result.match(pattern);
+    if (match) {
+      const coreMatch = match[0].match(/(explain|describe|summarize)\s+(.+?)(?:\s|$)/i);
+      if (coreMatch) {
+        result = `${coreMatch[1]} ${coreMatch[2]}`;
+        optimizations.push('Extracted core request');
+        return result;
+      }
+    }
+  });
+  
+  return result;
+};
+
 // 6. Keyword extraction approach
 const extractKeywords = (text, optimizations) => {
   const doc = nlp(text);
@@ -385,5 +503,6 @@ export {
   convertPassiveToActive,
   shortenExpressions,
   applyStructuredFormat,
+  extractCoreRequest,
   extractKeywords
 };
