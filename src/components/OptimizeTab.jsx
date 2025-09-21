@@ -1,3 +1,4 @@
+// OptimizeTab.jsx
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import CountUp from "react-countup";
@@ -11,13 +12,12 @@ export default function OptimizeTab({ state, setState, user }) {
   const [triggerCount, setTriggerCount] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Use external state for persistence
   const {
     messages,
     tokensBefore,
     tokensAfter,
-    carbonSaved,
-    totalCarbonSaved,
+    carbonSavedMg,
+    totalCarbonSavedMg,
     sessionStats
   } = state;
 
@@ -28,7 +28,6 @@ export default function OptimizeTab({ state, setState, user }) {
     "⚡ Efficiency Booster — faster prompts.",
   ];
 
-  // cycle through taglines every 3s
   useEffect(() => {
     const interval = setInterval(() => {
       setTaglineIndex((prev) => (prev + 1) % taglines.length);
@@ -36,17 +35,15 @@ export default function OptimizeTab({ state, setState, user }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Load session stats on component mount and when user changes
   useEffect(() => {
     loadSessionStats();
-    // Clear messages when user changes (including when user becomes null)
     setState(prev => ({
       ...prev,
       messages: [],
       tokensBefore: 0,
       tokensAfter: 0,
-      carbonSaved: 0,
-      totalCarbonSaved: 0
+      carbonSavedMg: 0,
+      totalCarbonSavedMg: 0
     }));
   }, [user]);
 
@@ -54,10 +51,11 @@ export default function OptimizeTab({ state, setState, user }) {
     try {
       const stats = await apiService.getSessionStats();
       if (stats.success) {
+        const mg = stats.data.sessionStats.totalCarbonSaved * 1000;
         setState(prev => ({
           ...prev,
           sessionStats: stats.data,
-          totalCarbonSaved: stats.data.sessionStats.totalCarbonSaved
+          totalCarbonSavedMg: mg
         }));
       }
     } catch (error) {
@@ -71,7 +69,6 @@ export default function OptimizeTab({ state, setState, user }) {
     const userInput = input;
     setIsLoading(true);
 
-    // Add user message
     setState(prev => ({
       ...prev,
       messages: [...prev.messages, { text: userInput, sender: "user" }]
@@ -80,20 +77,37 @@ export default function OptimizeTab({ state, setState, user }) {
     setIsTyping(true);
 
     try {
-      // Use the actual optimization logic
       const result = optimizePrompt(userInput);
-      
+
+      // Convert g → mg for frontend
+      const mgSaved = result.carbonSavings.co2Saved * 1000;
+
+      // Already optimal case
+      if (result.tokensBefore === result.tokensAfter) {
+        setIsTyping(false);
+        setState(prev => ({
+          ...prev,
+          tokensBefore: result.tokensBefore,
+          tokensAfter: result.tokensAfter,
+          messages: [
+            ...prev.messages,
+            { text: "✅ Your prompt is already optimal!", sender: "bot" }
+          ]
+        }));
+        return;
+      }
+
       setState(prev => ({
         ...prev,
         tokensBefore: result.tokensBefore,
         tokensAfter: result.tokensAfter,
-        carbonSaved: result.carbonSavings.co2Saved,
-        totalCarbonSaved: prev.totalCarbonSaved + result.carbonSavings.co2Saved
+        carbonSavedMg: mgSaved,
+        totalCarbonSavedMg: prev.totalCarbonSavedMg + mgSaved
       }));
+
       setTriggerCount(true);
       setTimeout(() => setTriggerCount(false), 200);
 
-      // Only save optimization to database if user is signed in
       if (user) {
         const saveResult = await apiService.saveOptimization({
           originalPrompt: result.original,
@@ -101,7 +115,7 @@ export default function OptimizeTab({ state, setState, user }) {
           tokensBefore: result.tokensBefore,
           tokensAfter: result.tokensAfter,
           tokensSaved: result.tokensSaved,
-          carbonSaved: result.carbonSavings.co2Saved,
+          carbonSaved: result.carbonSavings.co2Saved, // still g in DB
           qualityScore: result.qualityScore,
           optimizations: result.optimizations,
           strategy: 'balanced',
@@ -109,14 +123,8 @@ export default function OptimizeTab({ state, setState, user }) {
         });
 
         if (saveResult.success) {
-          console.log('Optimization saved successfully');
-          // Update session stats
           await loadSessionStats();
-        } else {
-          console.warn('Failed to save optimization:', saveResult.message);
         }
-      } else {
-        console.log('Optimization not saved - user not signed in');
       }
 
       setIsTyping(false);
@@ -152,7 +160,7 @@ export default function OptimizeTab({ state, setState, user }) {
 
   return (
     <div className="flex flex-col h-[85vh] w-full max-w-4xl mx-auto">
-      {/* Hero Bubble Section */}
+      {/* Hero Bubble */}
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -182,7 +190,6 @@ export default function OptimizeTab({ state, setState, user }) {
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        {/* Chat Messages */}
         <div className="flex-1 space-y-3 overflow-y-auto p-4">
           {messages.length === 0 && !isTyping && (
             <p className="text-center text-gray-400 italic">
@@ -214,7 +221,6 @@ export default function OptimizeTab({ state, setState, user }) {
             </motion.div>
           ))}
 
-          {/* Typing Indicator */}
           {isTyping && (
             <motion.div
               initial={{ opacity: 0 }}
@@ -234,44 +240,35 @@ export default function OptimizeTab({ state, setState, user }) {
           <div className="grid grid-cols-3 gap-4 p-4 border-t bg-gray-50">
             <div className="bg-white p-3 rounded-lg shadow text-center">
               <p className="text-xl font-bold text-gray-800">
-                {triggerCount ? (
-                  <CountUp end={tokensBefore} duration={1} />
-                ) : (
-                  tokensBefore
-                )}
+                {triggerCount ? <CountUp end={tokensBefore} duration={1} /> : tokensBefore}
               </p>
               <p className="text-sm text-gray-600">Tokens before</p>
             </div>
             <div className="bg-white p-3 rounded-lg shadow text-center">
               <p className="text-xl font-bold text-gray-800">
-                {triggerCount ? (
-                  <CountUp end={tokensAfter} duration={1} />
-                ) : (
-                  tokensAfter
-                )}
+                {triggerCount ? <CountUp end={tokensAfter} duration={1} /> : tokensAfter}
               </p>
               <p className="text-sm text-gray-600">Tokens after</p>
             </div>
             <div className="bg-white p-3 rounded-lg shadow text-center">
               <p className="text-xl font-bold text-gray-800">
                 {triggerCount ? (
-                  <CountUp end={carbonSaved} decimals={2} duration={1.5} />
+                  <CountUp end={carbonSavedMg} decimals={2} duration={1.5} />
                 ) : (
-                  carbonSaved.toFixed(2)
+                  Number(carbonSavedMg).toPrecision(3)
                 )}
               </p>
-              <p className="text-sm text-gray-600">CO₂ saved (g)</p>
+              <p className="text-sm text-gray-600">CO₂ saved (mg)</p>
             </div>
           </div>
         )}
 
-        {/* Total Carbon Saved */}
-        {totalCarbonSaved > 0 && (
+        {totalCarbonSavedMg > 0 && (
           <div className="px-4 py-2 bg-green-50 border-t">
             <div className="text-center">
               <span className="text-sm text-gray-600">Total CO₂ saved: </span>
               <span className="font-bold text-green-600">
-                {totalCarbonSaved.toFixed(2)}g
+                {Number(totalCarbonSavedMg).toPrecision(3)} mg
               </span>
             </div>
           </div>
@@ -284,7 +281,7 @@ export default function OptimizeTab({ state, setState, user }) {
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type your prompt..."
             className="flex-1 px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-green-400 outline-none shadow-sm"
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+            onKeyDown={(e) => e.key === "Enter" && handleSend()}
           />
           <motion.button
             whileTap={{ scale: 0.9 }}
@@ -292,7 +289,7 @@ export default function OptimizeTab({ state, setState, user }) {
             disabled={isLoading}
             className="px-5 py-3 bg-green-500 text-white font-semibold rounded-xl shadow hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? 'Saving...' : 'Send'}
+            {isLoading ? "Saving..." : "Send"}
           </motion.button>
         </div>
       </motion.div>
