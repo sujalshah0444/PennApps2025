@@ -1,4 +1,4 @@
-# 🌱 Type-less
+# Project Type-less
 
 > Write smarter prompts. Save tokens. Save energy. Save the planet.
 
@@ -151,8 +151,11 @@ Built at **PennApps XXV (2024)**
 
 ---
 
+## Learn More
+
+- [React Documentation](https://reactjs.org/)
+- [Create React App Documentation](https://facebook.github.io/create-react-app/docs/getting-started)
+
 ## 📜 License
 
-Licensed under the University of Pennsylvania License.  
-See `LICENSE` for details.  
-S
+Licensed under the University of Pennsylvania License.   
