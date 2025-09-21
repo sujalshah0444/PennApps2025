@@ -4,13 +4,15 @@
   "description": "A basic React project",
   "main": "index.js",
   "scripts": {
-    "start": "react-scripts start",
+    "start": "cd backend && node server.js",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "server": "nodemon backend/server.js",
-    "dev": "concurrently \"npm run server\" \"npm start\"",
-    "install-uuid": "npm install uuid"
+    "dev": "concurrently \"npm run server\" \"npm run frontend\"",
+    "frontend": "react-scripts start",
+    "install-uuid": "npm install uuid",
+    "heroku-postbuild": "npm install"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
