@@ -26,7 +26,8 @@ connectDB();
 app.use(cors({
   origin: [
     'http://localhost:3000',
-    'https://your-app-name.netlify.app'
+    'https://type-less.netlify.app',
+    'https://*.netlify.app'
   ],
   credentials: true
 }));
