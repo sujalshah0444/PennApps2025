@@ -21,7 +21,7 @@ heroku login
 heroku create your-app-name-backend
 
 # Set environment variables
-heroku config:set MONGODB_URI="mongodb+srv://username:password@cluster.mongodb.net/prompt-optimizer?retryWrites=true&w=majority"
+heroku config:set MONGODB_URI="mongodb+srv://your-username:your-password@your-cluster.mongodb.net/prompt-optimizer?retryWrites=true&w=majority"
 heroku config:set JWT_SECRET="your-super-secure-random-string-here"
 heroku config:set NODE_ENV="production"
 

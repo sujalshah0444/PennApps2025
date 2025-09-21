@@ -37,7 +37,7 @@
 4. Replace `<password>` with your database user password
 5. Replace `<dbname>` with `prompt-optimizer`
 
-Example: `mongodb+srv://username:password@cluster.mongodb.net/prompt-optimizer?retryWrites=true&w=majority`
+Example: `mongodb+srv://your-username:your-password@your-cluster.mongodb.net/prompt-optimizer?retryWrites=true&w=majority`
 
 ## 🌐 Step 2: Deploy Backend (Heroku)
 
@@ -56,7 +56,7 @@ heroku create your-app-name-backend
 ### 2.2 Configure Environment Variables
 ```bash
 # Set MongoDB URI
-heroku config:set MONGODB_URI="mongodb+srv://username:password@cluster.mongodb.net/prompt-optimizer?retryWrites=true&w=majority"
+heroku config:set MONGODB_URI="mongodb+srv://your-username:your-password@your-cluster.mongodb.net/prompt-optimizer?retryWrites=true&w=majority"
 
 # Set JWT Secret (generate a secure random string)
 heroku config:set JWT_SECRET="your-super-secure-jwt-secret-here"
